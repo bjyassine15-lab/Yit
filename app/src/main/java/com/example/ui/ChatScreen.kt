@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.SettingsVoice
@@ -72,6 +73,10 @@ fun ChatScreen(
     val speechText by viewModel.speechText.collectAsState()
     val isApiKeyMissing by viewModel.isApiKeyMissing.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val customApiKey by viewModel.customApiKey.collectAsState()
+    
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    var tempApiKey by remember(customApiKey) { mutableStateOf(customApiKey) }
     
     val isListening = isContinuousVoiceMode
 
@@ -162,6 +167,16 @@ fun ChatScreen(
                     },
                     actions = {
                         IconButton(
+                            onClick = { showSettingsDialog = true },
+                            modifier = Modifier.testTag("settings_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "إعدادات مفتاح API",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(
                             onClick = { viewModel.clearChat() },
                             modifier = Modifier.testTag("clear_chat_button")
                         ) {
@@ -215,11 +230,51 @@ fun ChatScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "يرجى إضافة مفتاح الـ GEMINI_API_KEY في لوحة الأسرار (Secrets panel) في AI Studio لتشغيل المساعد أحمد بشكل سليم.",
+                                text = "يرجى إضافة مفتاح الـ GEMINI_API_KEY لتشغيل المساعد أحمد بشكل سليم. يمكنك كتابته أو لصقه هنا مباشرة:",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     color = MaterialTheme.colorScheme.onErrorContainer
                                 )
                             )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            
+                            var inlineKeyByState by remember { mutableStateOf("") }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = inlineKeyByState,
+                                    onValueChange = { inlineKeyByState = it },
+                                    placeholder = { Text("لصق مفتاح الـ API هنا...", style = MaterialTheme.typography.bodyMedium) },
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("inline_api_key_input"),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        if (inlineKeyByState.trim().isNotEmpty()) {
+                                            viewModel.saveCustomApiKey(inlineKeyByState.trim())
+                                        }
+                                    },
+                                    enabled = inlineKeyByState.trim().isNotEmpty(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    ),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("حفظ")
+                                }
+                            }
                         }
                     }
                 }
@@ -413,6 +468,67 @@ fun ChatScreen(
                 }
             }
         }
+    }
+
+    if (showSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showSettingsDialog = false },
+            title = {
+                Text(
+                    text = "إعدادات مفتاح الـ API",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Right
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "قم بإدخال مفتاح الـ Gemini API لتفعيل محادثات المساعد أحمد النصية والصوتية الحية:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Right,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = tempApiKey,
+                        onValueChange = { tempApiKey = it },
+                        placeholder = { Text("AIzaSy...", style = MaterialTheme.typography.bodyMedium) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("api_key_settings_input"),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "إذا تركت هذا الحقل فارغاً، سيتم محاولة استخدام المفتاح الافتراضي للمشروع.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
+                        textAlign = TextAlign.Right,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.saveCustomApiKey(tempApiKey.trim())
+                        showSettingsDialog = false
+                    }
+                ) {
+                    Text("حفظ")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showSettingsDialog = false }
+                ) {
+                    Text("إلغاء")
+                }
+            }
+        )
     }
 }
 

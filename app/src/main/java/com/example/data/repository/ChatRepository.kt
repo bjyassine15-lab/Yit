@@ -25,8 +25,7 @@ class ChatRepository(private val chatDao: ChatDao) {
         chatDao.clearHistory()
     }
 
-    suspend fun getGeminiResponse(userPrompt: String): String {
-        val apiKey = BuildConfig.GEMINI_API_KEY
+    suspend fun getGeminiResponse(userPrompt: String, apiKey: String): String {
         if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
             return "ERROR_API_KEY_MISSING"
         }

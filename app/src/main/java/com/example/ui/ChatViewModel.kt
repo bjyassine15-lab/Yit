@@ -19,6 +19,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: ChatRepository
     val messages: StateFlow<List<ChatMessage>>
 
+    private val sharedPrefs = application.getSharedPreferences("ahmed_chat_prefs", android.content.Context.MODE_PRIVATE)
+
+    private val _customApiKey = MutableStateFlow(sharedPrefs.getString("custom_gemini_api_key", "") ?: "")
+    val customApiKey = _customApiKey.asStateFlow()
+
     private val _inputText = MutableStateFlow("")
     val inputText = _inputText.asStateFlow()
 
@@ -53,10 +58,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         // Verify API key is present
-        val testApiKey = BuildConfig.GEMINI_API_KEY
-        if (testApiKey.isEmpty() || testApiKey == "MY_GEMINI_API_KEY") {
-            _isApiKeyMissing.value = true
+        checkApiKeyStatus()
+    }
+
+    fun getActiveApiKey(): String {
+        val customKey = _customApiKey.value.trim()
+        if (customKey.isNotEmpty()) {
+            return customKey
         }
+        val buildConfigKey = BuildConfig.GEMINI_API_KEY
+        if (buildConfigKey.isNotEmpty() && buildConfigKey != "MY_GEMINI_API_KEY") {
+            return buildConfigKey
+        }
+        return ""
+    }
+
+    fun saveCustomApiKey(key: String) {
+        sharedPrefs.edit().putString("custom_gemini_api_key", key.trim()).apply()
+        _customApiKey.value = key.trim()
+        checkApiKeyStatus()
+    }
+
+    private fun checkApiKeyStatus() {
+        _isApiKeyMissing.value = getActiveApiKey().isEmpty()
     }
 
     fun setInputText(text: String) {
@@ -78,7 +102,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 // Standard REST generation
                 _isLoading.value = true
-                val reply = repository.getGeminiResponse(text)
+                val reply = repository.getGeminiResponse(text, getActiveApiKey())
                 _isLoading.value = false
                 repository.insertMessage(reply, isUser = false)
             }
@@ -96,6 +120,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startLiveSession() {
+        val apiKey = getActiveApiKey()
+        if (apiKey.isEmpty()) {
+            _isApiKeyMissing.value = true
+            return
+        }
+
         _isContinuousVoiceMode.value = true
         _speechText.value = "جاري الاتصال بأحمد (Live API)..."
         _errorMessage.value = null
@@ -104,7 +134,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         currentAssistantReply.clear()
 
         webSocket = GeminiLiveApi.connect(
-            apiKey = BuildConfig.GEMINI_API_KEY,
+            apiKey = apiKey,
             onMessage = { msg ->
                 // Handle Setup Complete
                 if (msg.setupComplete != null) {
